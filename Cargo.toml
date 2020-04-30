@@ -1,4 +1,5 @@
 [package]
+edition = "2018"
 name = "kafka-topic-analyzer"
 version = "0.5.0"
 authors = ["Mario Mueller <mario@xenji.com>"]
@@ -9,14 +10,13 @@ categories = ["command-line-utilities"]
 description = "An analyzer for getting metrics about the contents of a Apache Kafka topic"
 
 [dependencies]
-clap = "2.33.0"
-env_logger = "0.6.2"
+clap = {git = "https://github.com/clap-rs/clap"}
 log = "0.4.8"
 prettytable-rs = "0.8.0"
-uuid = { version = "0.7.4", features = ["v4"] }
-chrono = "0.4.9"
-indicatif = "0.11.0"
-rdkafka = "0.21.0"
+uuid = { version = "0.8.1", features = ["v4"] }
+chrono = "0.4.10"
+indicatif = "0.14.0"
+rdkafka = { version = "0.23.1", features = ["cmake-build"] }
 bit-set = "0.5.1"
 
 [features]

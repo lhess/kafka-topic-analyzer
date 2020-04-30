@@ -1,59 +1,54 @@
-extern crate bit_set;
-extern crate chrono;
-extern crate clap;
-extern crate core;
-extern crate env_logger;
-extern crate indicatif;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate prettytable;
-extern crate rdkafka;
-extern crate uuid;
-
 use clap::{App, Arg};
+use log::error;
 use metric::LogCompactionInMemoryMetrics;
 use metric::MessageMetrics;
+use prettytable::{row, Table};
 use prettytable::Cell;
 use prettytable::Row;
-use prettytable::Table;
 use std::cmp::max;
 use std::collections::HashMap;
-use std::time::Instant;
 use std::process::exit;
+use std::time::Instant;
+#[macro_use] extern crate prettytable;
 
 mod kafka;
 mod metric;
 mod fnv32;
 
 fn main() {
-    env_logger::init();
-
     let matches = App::new("Kafka Topic Analyzer")
         .bin_name("kafka-topic-analyzer")
         
         .version("0.4.1")
 
         .arg(Arg::with_name("topic")
-            .short("t")
+            .short('t')
             .long("topic")
             .value_name("TOPIC")
-            .help("The topic to analyze")
+            .about("The topic to analyze")
             .takes_value(true)
             .required(true)
         )
+        .arg(Arg::with_name("max-records")
+            .short('r')
+            .long("max-records")
+            .value_name("MAX_RECORDS")
+            .about("The number of consumed records")
+            .takes_value(true)
+            .required(false)
+        )
         .arg(Arg::with_name("bootstrap-server")
-            .short("b")
+            .short('b')
             .long("bootstrap-server")
             .value_name("BOOTSTRAP_SERVER")
-            .help("Bootstrap server(s) to work with, comma separated")
+            .about("Bootstrap server(s) to work with, comma separated")
             .takes_value(true)
             .required(true)
         )
         .arg(Arg::with_name("count-alive-keys")
-            .short("c")
+            .short('c')
             .long("count-alive-keys")
-            .help("Counts the effective number of alive keys in a log compacted topic by saving the \
+            .about("Counts the effective number of alive keys in a log compacted topic by saving the \
             state for each key in a local file and counting the result at the end of the read operation.\
             A key is 'alive' when it is present and has a non-null value in it's latest-offset version")
             .required(false))
@@ -66,6 +61,7 @@ fn main() {
     let end_offsets: HashMap<i32, i64>;
     let topic = matches.value_of("topic").unwrap();
     let bootstrap_server = matches.value_of("bootstrap-server").unwrap();
+    let max_records: u64 = matches.value_of_t("max-records").unwrap_or(0);
 
     let mut log_compaction_metrics = match matches.occurrences_of("count-alive-keys") {
         1 => Some(LogCompactionInMemoryMetrics::new()),
@@ -74,7 +70,7 @@ fn main() {
 
     let mut metrics = MessageMetrics::new();
     {
-        let mut topic_analyzer = kafka::TopicAnalyzer::new_from_bootstrap_servers(bootstrap_server);
+        let mut topic_analyzer = kafka::TopicAnalyzer::new_from_bootstrap_servers(bootstrap_server, max_records);
         let offsets = topic_analyzer.get_topic_offsets(topic);
         start_offsets = offsets.0;
         end_offsets = offsets.1;
@@ -132,7 +128,6 @@ fn main() {
         println!("{}", "=".repeat(120));
         let mut table = Table::new();
         table.add_row(row!["P", "< OS", "> OS", "Total", "Alive", "Tmb", "DR", "K Null", "K !Null", "P-Bytes", "K-Bytes", "V-Bytes", "A K-Sz", "A V-Sz", "A M-Sz"]);
-
 
         for partition in partitions {
             let key_size_avg = metrics.key_size_avg(partition);
