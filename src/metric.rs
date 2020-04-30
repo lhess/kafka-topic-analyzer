@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 use chrono::prelude::*;
-use fnv32::FnvHasher;
-use kafka::MetricHandler;
 use rdkafka::message::{Message, BorrowedMessage};
-use bit_set::BitSet;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::hash::Hasher;
+use crate::kafka::MetricHandler;
 
 type Partition = i32;
 type PartitionedCounterBucket = HashMap<Partition, u64>;
@@ -252,31 +253,29 @@ impl MetricHandler for MessageMetrics {
     }
 }
 
-
 fn fnv1a(bytes: &[u8]) -> usize {
-    let mut hasher = FnvHasher::default();
+    let mut hasher = DefaultHasher::new();
     hasher.write(bytes);
     hasher.finish() as usize // FIXME: this makes the binary incompatible with any non 64bit system
 }
 
 pub struct LogCompactionInMemoryMetrics {
-    store: Box<BitSet>
+    store: Box<HashSet<usize>>
 }
 
 impl LogCompactionInMemoryMetrics {
     pub fn new() -> LogCompactionInMemoryMetrics {
         LogCompactionInMemoryMetrics {
-            store: Box::new(BitSet::new())
+            store: Box::new(HashSet::new())
         }
     }
 
     pub fn mark_key_alive(&mut self, key: &[u8]) {
-        let k = fnv1a(key);
-        self.store.insert(k);
+        self.store.insert(fnv1a(key));
     }
 
     pub fn mark_key_dead(&mut self, key: &[u8]) {
-        self.store.remove(fnv1a(key));
+        self.store.remove(&fnv1a(key));
     }
 
     pub fn sum_all_alive(&self) -> usize {
