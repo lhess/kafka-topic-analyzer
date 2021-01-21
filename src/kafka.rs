@@ -7,10 +7,12 @@ use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::{BaseConsumer, Consumer, DefaultConsumerContext};
 use rdkafka::message::{Message, BorrowedMessage};
 use uuid::Uuid;
+use log::warn;
 
 pub type KafkaConsumer = BaseConsumer<DefaultConsumerContext>;
 
 pub struct TopicAnalyzer<'a> {
+    max_records: u64,
     consumer: KafkaConsumer,
     metric_handlers: Vec<&'a mut dyn MetricHandler>,
 }
@@ -20,8 +22,9 @@ pub trait MetricHandler {
 }
 
 impl<'a> TopicAnalyzer<'a> {
-    pub fn new_from_bootstrap_servers(bootstrap_server: &str) -> TopicAnalyzer<'a> {
+    pub fn new_from_bootstrap_servers(bootstrap_server: &str, max_records: u64) -> TopicAnalyzer<'a> {
         TopicAnalyzer {
+            max_records,
             consumer: ClientConfig::new()
                 // we use ENV["USER"] to make the analyzer identify-able. It can emit quite a lot of load
                 // on the cluster, so you might want to see who this is.
@@ -78,6 +81,10 @@ impl<'a> TopicAnalyzer<'a> {
 
         println!("Starting message consumption...");
         loop {
+            if self.max_records > 0 && seq >= self.max_records {
+                break;
+            }
+            
             match self.consumer.poll(Duration::from_millis(100)) {
                 None => {}
                 Some(Err(e)) => {
